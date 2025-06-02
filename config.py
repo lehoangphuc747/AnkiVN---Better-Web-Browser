@@ -10,5 +10,7 @@ def default_config():
     return {
         "note_type": "",
         "main_field": "",
-        "field_search_configs": {}  # New: To store search sites for other fields
+        "configurable_fields": {},  # Format: {note_type_name: [field_name1, field_name2]}
+        "field_display_states": {}, # Format: {note_type_name: {field_name: {"expanded": True/False}}}
+        "field_search_configs": {}  # Existing: site selections for configured fields
     }
