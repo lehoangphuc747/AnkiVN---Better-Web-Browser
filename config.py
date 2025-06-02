@@ -8,5 +8,7 @@ def save_config(config):
 
 def default_config():
     return {
-        "start_url": "https://www.google.com"
+        "start_url": "https://www.google.com",
+        "note_type": "",
+        "main_field": ""
     }
