@@ -7,7 +7,7 @@ from . import config
 class SettingsDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Setting - Better Web Browser -")
+        self.setWindowTitle("Setting - Better Web Browser")
         self.setup_ui()
         
     def setup_ui(self):
