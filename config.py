@@ -9,5 +9,6 @@ def save_config(config):
 def default_config():
     return {
         "note_type": "",
-        "main_field": ""
+        "main_field": "",
+        "field_search_configs": {}  # New: To store search sites for other fields
     }
