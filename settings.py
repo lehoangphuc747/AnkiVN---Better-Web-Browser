@@ -15,15 +15,6 @@ class SettingsDialog(QDialog):
         layout = QVBoxLayout(self)
         self.setMinimumWidth(400)
         
-        # Start URL
-        url_layout = QHBoxLayout()
-        url_label = QLabel("Start URL:")
-        self.url_input = QLineEdit()
-        self.url_input.setText(config.get_config().get("start_url", "https://www.google.com"))
-        url_layout.addWidget(url_label)
-        url_layout.addWidget(self.url_input)
-        layout.addLayout(url_layout)
-
         # Note Type selection
         note_type_layout = QHBoxLayout()
         note_type_label = QLabel("Note Type:")
@@ -79,7 +70,6 @@ class SettingsDialog(QDialog):
 
     def save_settings(self):
         cfg = config.get_config()
-        cfg["start_url"] = self.url_input.text()
         cfg["note_type"] = self.note_type_combo.currentText()
         cfg["main_field"] = self.field_combo.currentText()
         config.save_config(cfg)

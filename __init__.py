@@ -101,7 +101,8 @@ def show_browser_sidebar(editor, url=None):
 
     if parent.__class__.__name__ == "Browser":
         from PyQt6.QtWidgets import QDockWidget, QSizePolicy
-        browser = BrowserWidget(url=config.get_config()["start_url"], parent=parent)
+        # Pass None for url, as it's no longer configured
+        browser = BrowserWidget(url=None, parent=parent) 
         parent._browser_sidebar = browser
         
         dock = QDockWidget(parent)  
@@ -128,8 +129,9 @@ def show_browser_sidebar(editor, url=None):
     container.setLayout(old_layout)
     
     splitter.addWidget(container)
-    start_url = url if url is not None else config.get_config()["start_url"]
-    browser = BrowserWidget(url=start_url, parent=parent)
+    # Pass None for start_url, as it's no longer configured
+    # start_url = url if url is not None else config.get_config()["start_url"]
+    browser = BrowserWidget(url=None, parent=parent) # Pass None for url
     parent._browser_sidebar = browser
     splitter.addWidget(browser)
     

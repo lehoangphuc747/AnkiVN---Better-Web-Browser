@@ -65,6 +65,8 @@ class TabWidget(QWidget):
             self.webview.load(QUrl(url))
             self.url_edit.setText(url)
         else:
+            # If no URL is provided, load a default page or leave it blank
+            self.webview.load(QUrl("about:blank")) 
             self.url_edit.setText("")
         
         layout.addWidget(self.webview)
@@ -199,6 +201,7 @@ class BrowserWidget(QWidget):
         self.focus_web_content()
 
     def _add_new_tab(self, url=None):
+        # If no url is provided to _add_new_tab, TabWidget will handle it (e.g. load about:blank)
         new_tab = TabWidget(url, self.tabs, browser=self)
         index = self.tabs.addTab(new_tab, "New Tab")
         self.tabs.setCurrentIndex(index)
