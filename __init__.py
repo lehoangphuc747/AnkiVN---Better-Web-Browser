@@ -2,6 +2,7 @@ from aqt import gui_hooks, mw
 from aqt.qt import (QWidget, QVBoxLayout, QShortcut, QKeySequence, QAction, QObject, QEvent, QMenu, 
                     QSplitter, Qt, QDockWidget, QSizePolicy, QUrl)
 from aqt.utils import tooltip
+from aqt.gui_hooks import browser_will_show
 from .browser import BrowserWidget
 from . import config
 from .settings import SettingsDialog
@@ -271,6 +272,26 @@ def add_browser_button(buttons, editor):
     )
     buttons.append(browser_button)
 
+def setup_editor_shortcuts(editor):
+    """Setup editor shortcuts for browser refresh."""
+    cfg = config.get_config()
+    refresh_shortcut = cfg.get("refresh_shortcut", "Ctrl+R")
+
+    if hasattr(editor, "parentWindow"):
+        window = editor.parentWindow
+
+        # Nếu đã có shortcut cũ, xóa để tránh trùng lặp
+        if hasattr(window, "_refresh_shortcut"):
+            window._refresh_shortcut.setParent(None)
+
+        # Tạo QShortcut trên cửa sổ Add Dialog
+        shortcut = QShortcut(QKeySequence(refresh_shortcut), window)
+        # Cho phép shortcut hoạt động dù focus con của window
+        shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        shortcut.activated.connect(lambda: refresh_browser_search(editor))
+        # Giữ tham chiếu để Qt không garbage-collect
+        window._refresh_shortcut = shortcut
+
 def refresh_browser_search(editor):
     """Refresh browser search based on current note's main field content."""
     if not hasattr(editor, 'parentWindow') or not hasattr(editor.parentWindow, '_browser_sidebar'):
@@ -280,17 +301,32 @@ def refresh_browser_search(editor):
     if not browser or not browser.isVisible():
         return
         
-    search_urls = _get_search_urls_for_editor(editor)
-    if search_urls:
-        _open_search_urls_in_browser(browser, search_urls)
-
-def setup_editor_shortcuts(editor):
-    """Setup editor shortcuts for browser refresh."""
+    # Lấy nội dung từ Main Field
     cfg = config.get_config()
-    refresh_shortcut = cfg.get("refresh_shortcut", "Ctrl+R")
+    main_field = cfg.get("main_field")
+    if not main_field:
+        return
+        
+    # Lưu note đang mở trước khi lấy nội dung
+    def after_save():
+        # Lấy nội dung từ editor sau khi đã lưu
+        if hasattr(editor, 'note') and editor.note:
+            note = editor.note
+            if main_field in note:
+                main_field_content = note[main_field].strip()
+                if not main_field_content:
+                    return
+                    
+                # Hiển thị tooltip cho người dùng biết đang tìm kiếm gì
+                tooltip(f"🔍 Searching for: {main_field_content}")
+                
+                # Lấy danh sách URL cần tìm kiếm
+                search_urls = _get_search_urls_for_editor(editor)
+                if search_urls:
+                    _open_search_urls_in_browser(browser, search_urls)
     
-    shortcut = QShortcut(QKeySequence(refresh_shortcut), editor.widget)
-    shortcut.activated.connect(lambda: refresh_browser_search(editor))
+    # Gọi saveNow với callback
+    editor.saveNow(after_save)
 
 def on_browser_row_changed(browser, row):
     """Handle browser row change to refresh search."""
@@ -299,12 +335,32 @@ def on_browser_row_changed(browser, row):
         
     editor = browser.editor
     if editor:
-        refresh_browser_search(editor)
+        # Thêm delay nhỏ để đảm bảo editor đã được cập nhật
+        mw.progress.timer(100, lambda: refresh_browser_search(editor), False)
+
+def setup_browser_shortcuts(browser):
+    """Setup browser shortcuts for refresh."""
+    cfg = config.get_config()
+    refresh_shortcut = cfg.get("refresh_shortcut", "Ctrl+R")
+    
+    # Gán phím tắt cho browser.form thay vì browser
+    shortcut = QShortcut(QKeySequence(refresh_shortcut), browser.form)
+    shortcut.activated.connect(lambda: refresh_browser_search(browser.editor))
+
+def setup_browser_hooks(browser):
+    """Setup all browser hooks and shortcuts."""
+    # Setup shortcuts
+    setup_browser_shortcuts(browser)
+    
+    # Connect to row change signal
+    browser.form.table.selectionModel().selectionChanged.connect(
+        lambda: on_browser_row_changed(browser, None)
+    )
 
 # Register hooks
 gui_hooks.editor_did_init_buttons.append(add_browser_button)
 gui_hooks.editor_did_init.append(setup_editor_shortcuts)
-gui_hooks.browser_did_change_row.append(on_browser_row_changed)
+browser_will_show.append(setup_browser_hooks)  # Use browser_will_show instead of browser_did_load
 
 # 메인 메뉴에 AnkiVN 서브메뉴 생성
 ankivn_menu = QMenu("AnkiVN", mw)
