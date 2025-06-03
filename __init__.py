@@ -271,6 +271,41 @@ def add_browser_button(buttons, editor):
     )
     buttons.append(browser_button)
 
+def refresh_browser_search(editor):
+    """Refresh browser search based on current note's main field content."""
+    if not hasattr(editor, 'parentWindow') or not hasattr(editor.parentWindow, '_browser_sidebar'):
+        return
+        
+    browser = editor.parentWindow._browser_sidebar
+    if not browser or not browser.isVisible():
+        return
+        
+    search_urls = _get_search_urls_for_editor(editor)
+    if search_urls:
+        _open_search_urls_in_browser(browser, search_urls)
+
+def setup_editor_shortcuts(editor):
+    """Setup editor shortcuts for browser refresh."""
+    cfg = config.get_config()
+    refresh_shortcut = cfg.get("refresh_shortcut", "Ctrl+R")
+    
+    shortcut = QShortcut(QKeySequence(refresh_shortcut), editor.widget)
+    shortcut.activated.connect(lambda: refresh_browser_search(editor))
+
+def on_browser_row_changed(browser, row):
+    """Handle browser row change to refresh search."""
+    if not hasattr(browser, '_browser_sidebar') or not browser._browser_sidebar.isVisible():
+        return
+        
+    editor = browser.editor
+    if editor:
+        refresh_browser_search(editor)
+
+# Register hooks
+gui_hooks.editor_did_init_buttons.append(add_browser_button)
+gui_hooks.editor_did_init.append(setup_editor_shortcuts)
+gui_hooks.browser_did_change_row.append(on_browser_row_changed)
+
 # 메인 메뉴에 AnkiVN 서브메뉴 생성
 ankivn_menu = QMenu("AnkiVN", mw)
 mw.form.menubar.insertMenu(mw.form.menuHelp.menuAction(), ankivn_menu) # Add this line to insert before Help menu
@@ -285,5 +320,3 @@ ankivn_menu.addAction(browser_settings_action)
 # another_action = QAction("Another Feature", mw)
 # another_action.triggered.connect(some_function)
 # ankivn_menu.addAction(another_action)
-
-gui_hooks.editor_did_init_buttons.append(add_browser_button)

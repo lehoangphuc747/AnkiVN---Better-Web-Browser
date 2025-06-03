@@ -1,3 +1,5 @@
+import json
+import os
 from aqt import mw
 
 PREDEFINED_SEARCH_SITES = {
@@ -39,17 +41,48 @@ PREDEFINED_SEARCH_SITES = {
     }
 }
 
+def get_config_path():
+    """Get the path to the config file."""
+    return os.path.join(mw.pm.addonFolder(), "config.json")
+
+def get_default_config():
+    """Get default configuration."""
+    return {
+        "note_type": "",  # Selected note type
+        "main_field": "",  # Main field for search
+        "refresh_shortcut": "Ctrl+R",  # Default refresh shortcut
+        "configurable_fields": {},  # Fields that can show web content
+        "field_search_configs": {}  # Search configurations for each field
+    }
+
 def get_config():
-    return mw.addonManager.getConfig(__name__) or default_config()
+    """Get current configuration."""
+    config_path = get_config_path()
+    
+    if not os.path.exists(config_path):
+        return get_default_config()
+        
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+            
+        # Ensure all required keys exist
+        default_config = get_default_config()
+        for key in default_config:
+            if key not in config:
+                config[key] = default_config[key]
+                
+        return config
+    except:
+        return get_default_config()
 
 def save_config(config):
-    mw.addonManager.writeConfig(__name__, config)
-
-def default_config():
-    return {
-        "note_type": "",
-        "main_field": "",
-        "configurable_fields": {},  # Format: {note_type_name: [field_name1, field_name2]}
-        "field_display_states": {}, # Format: {note_type_name: {field_name: {"expanded": True/False}}}
-        "field_search_configs": {}  # Existing: site selections for configured fields
-    }
+    """Save configuration to file."""
+    config_path = get_config_path()
+    
+    try:
+        with open(config_path, 'w', encoding='utf-8') as f:
+            json.dump(config, f, indent=4, ensure_ascii=False)
+        return True
+    except:
+        return False

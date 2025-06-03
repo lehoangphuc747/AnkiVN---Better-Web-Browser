@@ -2,9 +2,11 @@ from functools import partial
 from aqt.qt import (
     QDialog, QVBoxLayout, QHBoxLayout, 
     QLabel, QLineEdit, QPushButton, QComboBox, QCheckBox, 
-    QScrollArea, QGroupBox, QWidget, QListWidget, QListWidgetItem, Qt
+    QScrollArea, QGroupBox, QWidget, QListWidget, QListWidgetItem, Qt, QTreeWidget, QTreeWidgetItem,
+    QDialogButtonBox, QEvent, QKeySequence, QSplitter
 )
 from aqt import mw
+from aqt.utils import showInfo
 from . import config
 
 PREDEFINED_SEARCH_SITES = {
@@ -46,10 +48,50 @@ PREDEFINED_SEARCH_SITES = {
     }
 }
 
+class ShortcutEdit(QLineEdit):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setReadOnly(True)
+        self.setPlaceholderText("Click to set shortcut...")
+        self.setToolTip("Press any key combination to set shortcut")
+        
+    def keyPressEvent(self, event):
+        try:
+            if event.type() == QEvent.Type.KeyPress:
+                modifiers = event.modifiers()
+                key = event.key()
+                
+                # Skip if key is not valid
+                if key in (Qt.Key.Key_unknown, Qt.Key.Key_Control, Qt.Key.Key_Shift, 
+                          Qt.Key.Key_Alt, Qt.Key.Key_Meta, Qt.Key.Key_AltGr):
+                    return
+                    
+                # Convert modifiers to string
+                mod_str = ""
+                if modifiers & Qt.KeyboardModifier.ControlModifier:
+                    mod_str += "Ctrl+"
+                if modifiers & Qt.KeyboardModifier.ShiftModifier:
+                    mod_str += "Shift+"
+                if modifiers & Qt.KeyboardModifier.AltModifier:
+                    mod_str += "Alt+"
+                    
+                # Convert key to string
+                key_str = QKeySequence(key).toString()
+                if not key_str:
+                    return
+                    
+                # Set the shortcut text
+                self.setText(mod_str + key_str)
+                event.accept()
+        except Exception as e:
+            # Log error but don't crash
+            print(f"Error in ShortcutEdit.keyPressEvent: {str(e)}")
+            return
+
 class SettingsDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Better Web Browser - Settings")
+        self.setWindowTitle("Better Web Browser Settings")
         self.field_site_checkboxes = {}  # [note_type][field_name][category_name][site_name] -> QCheckBox
         self.configurable_field_details = {} # [field_name] -> { "group_box": QGroupBox, "content_widget": QWidget, "toggle_button": QPushButton, "categories": {}}
         
@@ -57,321 +99,308 @@ class SettingsDialog(QDialog):
         self.current_main_field_name = None # To track current main field easily
 
         self.setup_ui()
+        self.load_config()
         
     def setup_ui(self):
-        self.main_layout = QVBoxLayout(self)
-        self.setMinimumWidth(600) 
-        self.setMinimumHeight(500)
-
-        # Note Type selection
-        note_type_layout = QHBoxLayout()
-        note_type_label = QLabel("Note Type:")
+        main_layout = QVBoxLayout(self)
+        
+        # Create two columns
+        columns_layout = QHBoxLayout()
+        left_column = QVBoxLayout()
+        right_column = QVBoxLayout()
+        
+        # Left Column - Basic Configuration
+        # Note Type Selection
+        note_type_group = QGroupBox("Note Type")
+        note_type_layout = QVBoxLayout()
         self.note_type_combo = QComboBox()
-        all_note_types = mw.col.models.allNames()
-        self.note_type_combo.addItems(all_note_types)
-        note_type_layout.addWidget(note_type_label)
+        self.note_type_combo.currentTextChanged.connect(self.on_note_type_changed)
         note_type_layout.addWidget(self.note_type_combo)
-        self.main_layout.addLayout(note_type_layout)
-
-        # Main Field selection
-        main_field_layout = QHBoxLayout()
-        main_field_label = QLabel("Main Field (for integrated browser search):")
+        note_type_group.setLayout(note_type_layout)
+        left_column.addWidget(note_type_group)
+        
+        # Main Field Selection
+        main_field_group = QGroupBox("Main Field")
+        main_field_layout = QVBoxLayout()
         self.main_field_combo = QComboBox()
-        main_field_layout.addWidget(main_field_label)
         main_field_layout.addWidget(self.main_field_combo)
-        self.main_layout.addLayout(main_field_layout)
-
-        # Field Chooser (to select which other fields are configurable)
-        field_chooser_layout = QHBoxLayout()
-        field_chooser_label = QLabel("Select fields to configure:")
-        self.field_chooser_list = QListWidget()
-        self.field_chooser_list.setSelectionMode(QListWidget.SelectionMode.NoSelection) # Items are checkable, not selectable
-        field_chooser_layout.addWidget(field_chooser_label)
-        field_chooser_layout.addWidget(self.field_chooser_list)
-        self.main_layout.addLayout(field_chooser_layout)
-        self.main_layout.addWidget(QLabel("<b>Configure selected fields:</b>"))
-
-        # Scrollable area for the details of fields selected in field_chooser_list
-        self.details_scroll_area = QScrollArea(self)
-        self.details_scroll_area.setWidgetResizable(True)
-        self.details_widget_container = QWidget() 
-        self.details_layout = QVBoxLayout(self.details_widget_container) 
-        self.details_scroll_area.setWidget(self.details_widget_container)
-        self.main_layout.addWidget(self.details_scroll_area)
+        main_field_group.setLayout(main_field_layout)
+        left_column.addWidget(main_field_group)
         
-        # Load initial config and populate UI
-        self._load_initial_config_and_populate()
+        # Configurable Fields
+        fields_group = QGroupBox("Configurable Fields")
+        fields_layout = QVBoxLayout()
+        self.fields_list = QListWidget()
+        self.fields_list.setSelectionMode(QListWidget.SelectionMode.MultiSelection)
+        self.fields_list.itemChanged.connect(self.on_field_selection_changed)
+        fields_layout.addWidget(self.fields_list)
+        fields_group.setLayout(fields_layout)
+        left_column.addWidget(fields_group)
+        
+        # Refresh Shortcut (moved to bottom)
+        shortcut_group = QGroupBox("Refresh Shortcut")
+        shortcut_layout = QVBoxLayout()
+        self.shortcut_edit = ShortcutEdit()
+        shortcut_layout.addWidget(self.shortcut_edit)
+        shortcut_group.setLayout(shortcut_layout)
+        left_column.addWidget(shortcut_group)
+        
+        # Right Column - Search Sites
+        sites_group = QGroupBox("Search Sites")
+        sites_layout = QVBoxLayout()
+        
+        # Add search box
+        search_layout = QHBoxLayout()
+        search_label = QLabel("Search:")
+        self.search_edit = QLineEdit()
+        self.search_edit.setPlaceholderText("Type to filter sites...")
+        self.search_edit.textChanged.connect(self.filter_sites)
+        search_layout.addWidget(search_label)
+        search_layout.addWidget(self.search_edit)
+        sites_layout.addLayout(search_layout)
+        
+        # Create single column for sites
+        self.sites_tree = QTreeWidget()
+        self.sites_tree.setHeaderLabels(["Site", "Enabled", "URL Template"])
+        sites_layout.addWidget(self.sites_tree)
+        
+        sites_group.setLayout(sites_layout)
+        right_column.addWidget(sites_group)
+        
+        # Add columns to main layout with stretch factors
+        columns_layout.addLayout(left_column, 1)  # Left column takes 1/3
+        columns_layout.addLayout(right_column, 2)  # Right column takes 2/3
+        main_layout.addLayout(columns_layout)
+        
+        # Buttons at bottom
+        button_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | 
+            QDialogButtonBox.StandardButton.Cancel
+        )
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        main_layout.addWidget(button_box)
+        
+        # Set minimum sizes for better layout
+        self.setMinimumWidth(800)
+        self.setMinimumHeight(600)
 
-        # Connections
-        self.note_type_combo.currentTextChanged.connect(self._on_note_type_changed)
-        self.main_field_combo.currentTextChanged.connect(self._on_main_field_changed)
-        self.field_chooser_list.itemChanged.connect(self._on_field_chooser_item_changed)
-
-        # Buttons
-        button_layout = QHBoxLayout()
-        save_button = QPushButton("Save")
-        save_button.clicked.connect(self.save_settings)
-        cancel_button = QPushButton("Cancel")
-        cancel_button.clicked.connect(self.reject)
-        button_layout.addStretch()
-        button_layout.addWidget(save_button)
-        button_layout.addWidget(cancel_button)
-        self.main_layout.addLayout(button_layout)
-
-    def _load_initial_config_and_populate(self):
+    def load_config(self):
         cfg = config.get_config()
-        saved_note_type = cfg.get("note_type")
-
-        if saved_note_type and saved_note_type in mw.col.models.allNames():
-            self.note_type_combo.setCurrentText(saved_note_type)
-        elif self.note_type_combo.count() > 0:
-            self.note_type_combo.setCurrentIndex(0)
         
-        # _on_note_type_changed will be called, which populates main_field_combo and field_chooser
-        # and then _update_configurable_fields_display will be called by those handlers.
-        # We just need to ensure the first call to _on_note_type_changed happens.
-        self._on_note_type_changed(self.note_type_combo.currentText())
-
-
-    def _on_note_type_changed(self, note_type_name):
-        if not note_type_name:
-            self.main_field_combo.clear()
-            self.field_chooser_list.clear()
-            self._clear_details_layout()
-            return
-
-        self.current_note_type_name = note_type_name
-        cfg = config.get_config()
-        
-        self.main_field_combo.blockSignals(True)
-        self.main_field_combo.clear()
-        model = mw.col.models.byName(note_type_name)
-        if model:
-            field_names = [f['name'] for f in model['flds']]
-            self.main_field_combo.addItems(field_names)
+        # Load note types
+        note_types = mw.col.models.all()
+        self.note_type_combo.clear()
+        for note_type in note_types:
+            self.note_type_combo.addItem(note_type['name'])
             
-            saved_main_field = cfg.get("main_field")
-            # Check if saved_main_field is valid for this note_type
-            if cfg.get("note_type") == note_type_name and saved_main_field and saved_main_field in field_names:
-                self.main_field_combo.setCurrentText(saved_main_field)
-            elif field_names:
-                self.main_field_combo.setCurrentIndex(0)
-        self.main_field_combo.blockSignals(False)
-        
-        # This will trigger _on_main_field_changed if the main field actually changed,
-        # which in turn calls _populate_field_chooser_and_details.
-        # If it didn't change (e.g. first field is default), we need to call it manually.
-        if self.current_main_field_name == self.main_field_combo.currentText() and self.current_note_type_name == note_type_name :
-             self._populate_field_chooser_and_details()
-        else:
-            # Let the _on_main_field_changed signal handle the update.
-            # However, we need to ensure current_main_field_name is updated for the first run.
-             self.current_main_field_name = self.main_field_combo.currentText()
-             self._populate_field_chooser_and_details() # Manually call if main field didn't change via signal
-
-    def _on_main_field_changed(self, main_field_name):
-        if not self.current_note_type_name: # Not yet initialized
-            return
-        self.current_main_field_name = main_field_name
-        self._populate_field_chooser_and_details()
-
-    def _populate_field_chooser_and_details(self):
-        self.field_chooser_list.blockSignals(True)
-        self.field_chooser_list.clear()
-        self._clear_details_layout() # Clear existing details UI
-
-        if not self.current_note_type_name:
-            self.field_chooser_list.blockSignals(False)
-            return
-
-        model = mw.col.models.byName(self.current_note_type_name)
-        if not model:
-            self.field_chooser_list.blockSignals(False)
-            return
-            
-        cfg = config.get_config()
-        # Get list of fields chosen to be configurable for this note type
-        configurable_fields_for_note_type = cfg.get("configurable_fields", {}).get(self.current_note_type_name, [])
-
-        all_field_names_in_model = [f['name'] for f in model['flds']]
-        
-        for field_name in all_field_names_in_model:
-            if field_name == self.current_main_field_name:
-                continue # Don't add main field to chooser
-
-            item = QListWidgetItem(field_name)
-            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-            # Check if this field was previously selected in chooser
-            item.setCheckState(Qt.CheckState.Checked if field_name in configurable_fields_for_note_type else Qt.CheckState.Unchecked)
-            self.field_chooser_list.addItem(item)
-        
-        self.field_chooser_list.blockSignals(False)
-        self._update_configurable_fields_display() # Build UI for initially checked items
-
-    def _on_field_chooser_item_changed(self, item):
-        # This is called when a checkbox in the field_chooser_list changes state
-        self._update_configurable_fields_display()
-
-    def _clear_details_layout(self):
-        while self.details_layout.count():
-            child = self.details_layout.takeAt(0)
-            if child.widget():
-                child.widget().deleteLater()
-        self.configurable_field_details.clear()
-        # self.field_site_checkboxes.clear() # This should be managed per note_type/field
-
-    def _update_configurable_fields_display(self):
-        self._clear_details_layout() # Clear previous UI
-        
-        if not self.current_note_type_name:
-            return
-
-        cfg = config.get_config()
-        saved_display_states = cfg.get("field_display_states", {}).get(self.current_note_type_name, {})
-        saved_site_configs = cfg.get("field_search_configs", {}).get(self.current_note_type_name, {})
-
-        # Initialize field_site_checkboxes for the current note type if not present
-        if self.current_note_type_name not in self.field_site_checkboxes:
-            self.field_site_checkboxes[self.current_note_type_name] = {}
-
-        for i in range(self.field_chooser_list.count()):
-            item = self.field_chooser_list.item(i)
-            if item.checkState() == Qt.CheckState.Checked:
-                field_name = item.text()
-
-                # Initialize for this field if not present
-                if field_name not in self.field_site_checkboxes[self.current_note_type_name]:
-                     self.field_site_checkboxes[self.current_note_type_name][field_name] = {}
-
-
-                field_group_box = QGroupBox() # Main container for this field's config
-                field_group_layout = QVBoxLayout(field_group_box)
-
-                # Header with field name and toggle button
-                header_layout = QHBoxLayout()
-                field_label = QLabel(f"<b>{field_name}</b>")
-                toggle_button = QPushButton("▼") # Default to expanded
-                toggle_button.setCheckable(True)
-                toggle_button.setChecked(True) # Default to expanded
-                toggle_button.setStyleSheet("QPushButton { border: none; font-weight: bold; }")
-                toggle_button.setMaximumWidth(30)
-                header_layout.addWidget(field_label)
-                header_layout.addStretch()
-                header_layout.addWidget(toggle_button)
-                field_group_layout.addLayout(header_layout)
-
-                # Content widget (for categories and sites)
-                content_widget = QWidget()
-                content_layout = QVBoxLayout(content_widget)
-
-                field_saved_site_cfg = saved_site_configs.get(field_name, {})
-
-                for category_name, sites in PREDEFINED_SEARCH_SITES.items():
-                    if category_name not in self.field_site_checkboxes[self.current_note_type_name][field_name]:
-                        self.field_site_checkboxes[self.current_note_type_name][field_name][category_name] = {}
-
-                    category_group = QGroupBox(category_name)
-                    category_layout = QVBoxLayout(category_group)
-                    for site_name_key, site_url in sites.items():
-                        site_checkbox = QCheckBox(site_name_key)
-                        is_site_checked = field_saved_site_cfg.get(category_name, {}).get(site_name_key, False)
-                        site_checkbox.setChecked(is_site_checked)
-                        category_layout.addWidget(site_checkbox)
-                        self.field_site_checkboxes[self.current_note_type_name][field_name][category_name][site_name_key] = site_checkbox
-                    category_group.setLayout(category_layout)
-                    content_layout.addWidget(category_group)
+        # Set current note type
+        if cfg.get("note_type"):
+            index = self.note_type_combo.findText(cfg["note_type"])
+            if index >= 0:
+                self.note_type_combo.setCurrentIndex(index)
                 
-                content_widget.setLayout(content_layout)
-                field_group_layout.addWidget(content_widget)
-                field_group_box.setLayout(field_group_layout)
-                self.details_layout.addWidget(field_group_box)
-
-                # Store references
-                self.configurable_field_details[field_name] = {
-                    "group_box": field_group_box,
-                    "content_widget": content_widget,
-                    "toggle_button": toggle_button
-                }
-
-                # Connect toggle button
-                toggle_button.toggled.connect(partial(self._toggle_field_content, field_name, content_widget, toggle_button))
-
-                # Set initial expanded state
-                is_expanded = saved_display_states.get(field_name, {}).get("expanded", True) # Default to expanded
-                toggle_button.setChecked(is_expanded)
-                content_widget.setVisible(is_expanded)
-                toggle_button.setText("▼" if is_expanded else "►")
+        # Load main field
+        self.update_main_field_combo()
+        if cfg.get("main_field"):
+            index = self.main_field_combo.findText(cfg["main_field"])
+            if index >= 0:
+                self.main_field_combo.setCurrentIndex(index)
+                
+        # Load refresh shortcut
+        self.shortcut_edit.setText(cfg.get("refresh_shortcut", "Ctrl+R"))
         
-        self.details_layout.addStretch()
-
-    def _toggle_field_content(self, field_name, content_widget, button, checked):
-        content_widget.setVisible(checked)
-        button.setText("▼" if checked else "►")
-        # The state will be saved in save_settings
-
-    def save_settings(self):
-        cfg = config.get_config()
-
-        current_note_type = self.note_type_combo.currentText()
-        current_main_field = self.main_field_combo.currentText()
-
-        cfg["note_type"] = current_note_type
-        cfg["main_field"] = current_main_field
-
-        # --- Save Configurable Fields (from chooser) ---
-        if "configurable_fields" not in cfg:
-            cfg["configurable_fields"] = {}
+        # Load configurable fields
+        self.update_fields_list()
         
-        selected_configurable_fields = []
-        for i in range(self.field_chooser_list.count()):
-            item = self.field_chooser_list.item(i)
+        # Load search sites
+        self.update_sites_tree()
+        
+    def update_main_field_combo(self):
+        self.main_field_combo.clear()
+        note_type = self.note_type_combo.currentText()
+        if note_type:
+            model = mw.col.models.by_name(note_type)
+            if model:
+                for field in model['flds']:
+                    self.main_field_combo.addItem(field['name'])
+                    
+    def update_fields_list(self):
+        self.fields_list.clear()
+        note_type = self.note_type_combo.currentText()
+        if note_type:
+            model = mw.col.models.by_name(note_type)
+            if model:
+                cfg = config.get_config()
+                configurable_fields = cfg.get("configurable_fields", {}).get(note_type, [])
+                
+                for field in model['flds']:
+                    item = QListWidgetItem(field['name'])
+                    item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+                    item.setCheckState(
+                        Qt.CheckState.Checked if field['name'] in configurable_fields 
+                        else Qt.CheckState.Unchecked
+                    )
+                    self.fields_list.addItem(item)
+                    
+    def update_sites_tree(self):
+        """Update the sites tree based on selected fields."""
+        self.sites_tree.clear()
+        note_type = self.note_type_combo.currentText()
+        if not note_type:
+            return
+
+        # Get selected fields
+        selected_fields = []
+        for i in range(self.fields_list.count()):
+            item = self.fields_list.item(i)
             if item.checkState() == Qt.CheckState.Checked:
-                selected_configurable_fields.append(item.text())
+                selected_fields.append(item.text())
+
+        if not selected_fields:
+            return
+
+        # Load saved configurations
+        cfg = config.get_config()
+        field_configs = cfg.get("field_search_configs", {}).get(note_type, {})
         
-        if current_note_type: # Only save if a note type is selected
-            cfg["configurable_fields"][current_note_type] = selected_configurable_fields
+        # Add all fields to single tree
+        for field_name in selected_fields:
+            self._add_field_to_tree(self.sites_tree, field_name, field_configs.get(field_name, {}))
         
-        # --- Save Display States and Site Configs for selected configurable fields ---
-        if "field_display_states" not in cfg:
-            cfg["field_display_states"] = {}
-        if "field_search_configs" not in cfg:
-            cfg["field_search_configs"] = {}
+        # Resize columns
+        self.sites_tree.resizeColumnToContents(0)
+        self.sites_tree.resizeColumnToContents(1)
+        self.sites_tree.resizeColumnToContents(2)
 
-        if current_note_type:
-            if current_note_type not in cfg["field_display_states"]:
-                cfg["field_display_states"][current_note_type] = {}
-            if current_note_type not in cfg["field_search_configs"]:
-                cfg["field_search_configs"][current_note_type] = {}
-
-            # Store current states for fields that are still configurable
-            current_note_type_display_states = {}
-            current_note_type_search_configs = {}
-
-            for field_name in selected_configurable_fields:
-                if field_name in self.configurable_field_details:
-                    details = self.configurable_field_details[field_name]
-                    is_expanded = details["toggle_button"].isChecked()
-                    current_note_type_display_states[field_name] = {"expanded": is_expanded}
-
-                    # Save site checkboxes for this field
-                    if field_name in self.field_site_checkboxes.get(current_note_type, {}):
-                        current_note_type_search_configs[field_name] = {}
-                        for cat_name, sites in self.field_site_checkboxes[current_note_type][field_name].items():
-                            current_note_type_search_configs[field_name][cat_name] = {}
-                            for site_name_key, checkbox_widget in sites.items():
-                                current_note_type_search_configs[field_name][cat_name][site_name_key] = checkbox_widget.isChecked()
+    def _add_field_to_tree(self, tree, field_name, field_config):
+        """Add a field and its sites to a tree widget."""
+        field_item = QTreeWidgetItem([field_name, "", ""])
+        tree.addTopLevelItem(field_item)
+        
+        # Add all predefined categories and sites
+        for category, sites in PREDEFINED_SEARCH_SITES.items():
+            cat_item = QTreeWidgetItem([category, "", ""])
+            field_item.addChild(cat_item)
             
-            cfg["field_display_states"][current_note_type] = current_note_type_display_states
-            cfg["field_search_configs"][current_note_type] = current_note_type_search_configs
-
-            # Clean up: Remove states/configs for fields no longer in selected_configurable_fields for this note type
-            for field_in_cfg in list(cfg["field_display_states"][current_note_type].keys()):
-                if field_in_cfg not in selected_configurable_fields:
-                    del cfg["field_display_states"][current_note_type][field_in_cfg]
+            # Create toggle button for category
+            toggle_btn = QPushButton("Select All")
+            toggle_btn.setCheckable(True)
+            toggle_btn.clicked.connect(lambda checked, cat=cat_item, btn=toggle_btn: self._toggle_category_sites(cat, checked, btn))
+            tree.setItemWidget(cat_item, 1, toggle_btn)
             
-            for field_in_cfg in list(cfg["field_search_configs"][current_note_type].keys()):
-                if field_in_cfg not in selected_configurable_fields:
-                    del cfg["field_search_configs"][current_note_type][field_in_cfg]
+            # Get saved site states for this category
+            saved_sites = field_config.get(category, {})
+            
+            # Check if all sites are enabled
+            all_enabled = all(saved_sites.get(site_name, False) for site_name in sites)
+            toggle_btn.setChecked(all_enabled)
+            
+            for site_name, url_template in sites.items():
+                # Check if site was previously enabled
+                is_enabled = saved_sites.get(site_name, False)
+                
+                site_item = QTreeWidgetItem([site_name, "", url_template])
+                site_item.setCheckState(1, Qt.CheckState.Checked if is_enabled else Qt.CheckState.Unchecked)
+                cat_item.addChild(site_item)
+        
+        # Expand the field item by default
+        field_item.setExpanded(True)
 
-        config.save_config(cfg)
-        self.accept()
+    def _toggle_category_sites(self, category_item, checked, button):
+        """Toggle all sites in a category."""
+        for i in range(category_item.childCount()):
+            site_item = category_item.child(i)
+            site_item.setCheckState(1, Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked)
+        
+        # Update button text
+        button.setText("Unselect All" if checked else "Select All")
+
+    def filter_sites(self, text):
+        """Filter sites based on search text."""
+        for i in range(self.sites_tree.topLevelItemCount()):
+            field_item = self.sites_tree.topLevelItem(i)
+            field_visible = False
+            
+            for j in range(field_item.childCount()):
+                cat_item = field_item.child(j)
+                cat_visible = False
+                
+                for k in range(cat_item.childCount()):
+                    site_item = cat_item.child(k)
+                    site_name = site_item.text(0).lower()
+                    site_visible = text.lower() in site_name
+                    site_item.setHidden(not site_visible)
+                    cat_visible = cat_visible or site_visible
+                
+                cat_item.setHidden(not cat_visible)
+                field_visible = field_visible or cat_visible
+            
+            field_item.setHidden(not field_visible)
+
+    def on_note_type_changed(self, note_type):
+        self.update_main_field_combo()
+        self.update_fields_list()
+        self.update_sites_tree()
+        
+    def on_field_selection_changed(self, item):
+        """Handle field selection change in the fields list."""
+        self.update_sites_tree()
+
+    def accept(self):
+        cfg = config.get_config()
+        
+        # Save note type
+        cfg["note_type"] = self.note_type_combo.currentText()
+        
+        # Save main field
+        cfg["main_field"] = self.main_field_combo.currentText()
+        
+        # Save refresh shortcut
+        cfg["refresh_shortcut"] = self.shortcut_edit.text()
+        
+        # Save configurable fields
+        note_type = self.note_type_combo.currentText()
+        if note_type:
+            configurable_fields = []
+            for i in range(self.fields_list.count()):
+                item = self.fields_list.item(i)
+                if item.checkState() == Qt.CheckState.Checked:
+                    configurable_fields.append(item.text())
+                    
+            if "configurable_fields" not in cfg:
+                cfg["configurable_fields"] = {}
+            cfg["configurable_fields"][note_type] = configurable_fields
+            
+        # Save search sites configuration
+        if note_type:
+            field_configs = {}
+            for i in range(self.sites_tree.topLevelItemCount()):
+                field_item = self.sites_tree.topLevelItem(i)
+                field_name = field_item.text(0)
+                field_config = {}
+                
+                for j in range(field_item.childCount()):
+                    cat_item = field_item.child(j)
+                    category = cat_item.text(0)
+                    sites = {}
+                    
+                    for k in range(cat_item.childCount()):
+                        site_item = cat_item.child(k)
+                        site_name = site_item.text(0)
+                        enabled = site_item.checkState(1) == Qt.CheckState.Checked
+                        sites[site_name] = enabled
+                        
+                    field_config[category] = sites
+                    
+                field_configs[field_name] = field_config
+                
+            if "field_search_configs" not in cfg:
+                cfg["field_search_configs"] = {}
+            cfg["field_search_configs"][note_type] = field_configs
+            
+        # Save configuration
+        if config.save_config(cfg):
+            super().accept()
+        else:
+            showInfo("Failed to save configuration.")
