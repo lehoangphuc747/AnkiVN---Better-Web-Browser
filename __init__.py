@@ -1,5 +1,6 @@
-from aqt import QSplitter, Qt, gui_hooks, mw
-from aqt.qt import QWidget, QVBoxLayout, QShortcut, QKeySequence, QAction, QObject, QEvent, QMenu
+from aqt import gui_hooks, mw
+from aqt.qt import (QWidget, QVBoxLayout, QShortcut, QKeySequence, QAction, QObject, QEvent, QMenu, 
+                    QSplitter, Qt, QDockWidget, QSizePolicy, QUrl)
 from aqt.utils import tooltip
 from .browser import BrowserWidget
 from . import config
@@ -89,6 +90,9 @@ def show_browser_sidebar(editor, url=None):
             parent._browser_sidebar.show()
             return
 
+    # Get search query from main field and configured sites
+    search_urls = _get_search_urls_for_editor(editor)
+
     event_filter = BrowserEventFilter(parent)
     parent.installEventFilter(event_filter)
 
@@ -100,8 +104,6 @@ def show_browser_sidebar(editor, url=None):
         action.installEventFilter(action_filter)
 
     if parent.__class__.__name__ == "Browser":
-        from PyQt6.QtWidgets import QDockWidget, QSizePolicy
-        # Pass None for url, as it's no longer configured
         browser = BrowserWidget(url=None, parent=parent) 
         parent._browser_sidebar = browser
         
@@ -117,6 +119,10 @@ def show_browser_sidebar(editor, url=None):
         
         parent.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
         parent._browser_dock = dock  
+        
+        # Open search URLs if any
+        if search_urls:
+            _open_search_urls_in_browser(browser, search_urls)
         return
 
     splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -129,9 +135,7 @@ def show_browser_sidebar(editor, url=None):
     container.setLayout(old_layout)
     
     splitter.addWidget(container)
-    # Pass None for start_url, as it's no longer configured
-    # start_url = url if url is not None else config.get_config()["start_url"]
-    browser = BrowserWidget(url=None, parent=parent) # Pass None for url
+    browser = BrowserWidget(url=None, parent=parent)
     parent._browser_sidebar = browser
     splitter.addWidget(browser)
     
@@ -141,22 +145,131 @@ def show_browser_sidebar(editor, url=None):
     main_widget.setLayout(new_layout)
     
     splitter.setSizes([500, 500])
+    
+    # Open search URLs if any
+    if search_urls:
+        _open_search_urls_in_browser(browser, search_urls)
+
+def _get_search_urls_for_editor(editor):
+    """Get the search URLs based on the current note's main field content and configured sites."""
+    cfg = config.get_config()
+    
+    # Get the current note type and main field
+    note_type_name = cfg.get("note_type")
+    main_field_name = cfg.get("main_field")
+    
+    if not note_type_name or not main_field_name:
+        return []
+    
+    # Get the main field content from the editor
+    try:
+        if hasattr(editor, 'note') and editor.note:
+            note = editor.note
+            if main_field_name in note:
+                main_field_content = note[main_field_name].strip()
+                if not main_field_content:
+                    return []
+            else:
+                return []
+        else:
+            return []
+    except:
+        return []
+    
+    # Get configured fields and their sites for this note type
+    configurable_fields = cfg.get("configurable_fields", {}).get(note_type_name, [])
+    field_search_configs = cfg.get("field_search_configs", {}).get(note_type_name, {})
+    
+    search_urls = []
+    
+    # From settings.py PREDEFINED_SEARCH_SITES
+    predefined_sites = {
+        "English": {
+            "Cambridge Dictionary": "https://dictionary.cambridge.org/dictionary/english/{}",
+            "Oxford Dictionary": "https://www.oxfordlearnersdictionaries.com/definition/english/{}_1?q={}",
+            "Merriam-Webster": "https://www.merriam-webster.com/dictionary/{}",
+            "Longman Dictionary": "https://www.ldoceonline.com/dictionary/{}",
+            "Collins Dictionary": "https://www.collinsdictionary.com/dictionary/english/{}",
+            "Macmillan Dictionary": "https://www.macmillandictionary.com/search/?q={}",
+            "Urban Dictionary": "https://www.urbandictionary.com/define.php?term={}",
+            "Vocabulary.com": "https://www.vocabulary.com/dictionary/{}",
+            "The Free Dictionary": "https://www.thefreedictionary.com/{}",
+            "Dictionary.com": "https://www.dictionary.com/browse/{}"
+        },
+        "Tiếng Việt": {
+            "Cambridge Việt": "https://dictionary.cambridge.org/dictionary/english-vietnamese/{}",
+            "Dunno": "https://dunno.ai/search/word/{}?hl=vi",
+            "Laban": "https://dict.laban.vn/find?type=1&query={}",
+            "VDict": "https://vdict.com/{},1,0,0.html",
+        },
+        "Example": {
+            "Dunno Examples": "https://dunno.ai/search/example/{}?hl=vi",
+            "TraCau": "https://tracau.vn/?s={}",
+            "Ludwig": "https://ludwig.guru/s/{}",
+            "Sentence Stack": "https://sentencestack.com/q/{}",
+            "Fraze.it": "https://fraze.it/n_search.jsp?q={}&l=0"
+        },
+        "Thesaurus": {
+            "Thesaurus.com": "https://www.thesaurus.com/browse/{}",
+            "Power Thesaurus": "https://www.powerthesaurus.org/{}",
+            "Merriam-Webster Thesaurus": "https://www.merriam-webster.com/thesaurus/{}"
+        },
+        "Image": {
+            "Google Images": "https://www.google.com/search?q={}&tbm=isch",
+            "Bing Images": "https://www.bing.com/images/search?q={}",
+            "Giphy": "https://giphy.com/search/{}",
+            "Tenor": "https://tenor.com/search/{}"
+        }
+    }
+    
+    # For each configured field, get the selected sites
+    for field_name in configurable_fields:
+        if field_name in field_search_configs:
+            field_config = field_search_configs[field_name]
+            for category_name, sites_config in field_config.items():
+                if category_name in predefined_sites:
+                    for site_name, is_enabled in sites_config.items():
+                        if is_enabled and site_name in predefined_sites[category_name]:
+                            url_template = predefined_sites[category_name][site_name]
+                            # Format the URL with the main field content
+                            try:
+                                search_url = url_template.format(main_field_content)
+                                search_urls.append((site_name, search_url))
+                            except:
+                                # Handle URL formatting errors
+                                pass
+    
+    return search_urls
+
+def _open_search_urls_in_browser(browser, search_urls):
+    """Open search URLs in the browser as separate tabs."""
+    if not search_urls:
+        return
+    
+    # Open the first URL in the current tab (replace the blank page)
+    first_site_name, first_url = search_urls[0]
+    current_tab = browser.tabs.currentWidget()
+    if current_tab:
+        current_tab.webview.setUrl(QUrl(first_url))
+        current_tab.url_edit.setText(first_url)
+        # Update tab title
+        index = browser.tabs.indexOf(current_tab)
+        browser.tabs.setTabText(index, first_site_name[:15] + "..." if len(first_site_name) > 15 else first_site_name)
+    
+    # Open remaining URLs in new tabs
+    for site_name, url in search_urls[1:]:
+        browser._add_new_tab(url)
 
 def add_browser_button(buttons, editor):
-    tip_text = "Toggle web browser" if editor.parentWindow.__class__.__name__ == "Browser" else "Toggle web browser (Ctrl+Shift+L)"
-    button = editor.addButton(
+    """Add Web Browser button to editor buttons."""
+    browser_button = editor.addButton(
         icon=None,
-        cmd="toggle_browser",
-        func=lambda e: show_browser_sidebar(editor),
-        tip=tip_text,  
-        label="🌐"
+        cmd="web_browser",
+        func=lambda e=editor: show_browser_sidebar(e),
+        tip="Web Browser (Ctrl+B)",
+        keys="Ctrl+B"
     )
-
-    shortcut = QShortcut(QKeySequence("Shift+Ctrl+L"), editor.widget)
-    shortcut.activated.connect(lambda: show_browser_sidebar(editor))
-
-    buttons.append(button)
-    return buttons
+    buttons.append(browser_button)
 
 # 메인 메뉴에 AnkiVN 서브메뉴 생성
 ankivn_menu = QMenu("AnkiVN", mw)

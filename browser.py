@@ -210,3 +210,55 @@ class BrowserWidget(QWidget):
             new_tab.url_edit.setFocus()
             new_tab.url_edit.selectAll()
         return new_tab
+
+    def open_search_tabs(self, search_content):
+        """Open multiple search tabs based on configured fields and sites"""
+        if not search_content or not search_content.strip():
+            return
+            
+        from . import config
+        cfg = config.get_config()
+        note_type = cfg.get("note_type")
+        
+        if not note_type:
+            return
+            
+        # Get configured fields and their search sites
+        configurable_fields = cfg.get("configurable_fields", {}).get(note_type, [])
+        field_search_configs = cfg.get("field_search_configs", {}).get(note_type, {})
+        
+        # Import search sites from settings
+        from .settings import PREDEFINED_SEARCH_SITES
+        
+        search_urls = []
+        search_content_encoded = search_content.strip().replace(' ', '+')
+        
+        # Collect all search URLs from configured fields
+        for field_name in configurable_fields:
+            field_config = field_search_configs.get(field_name, {})
+            
+            for category_name, sites_config in field_config.items():
+                if category_name in PREDEFINED_SEARCH_SITES:
+                    for site_name, is_enabled in sites_config.items():
+                        if is_enabled and site_name in PREDEFINED_SEARCH_SITES[category_name]:
+                            url_template = PREDEFINED_SEARCH_SITES[category_name][site_name]
+                            search_url = url_template.format(search_content_encoded)
+                            search_urls.append((f"{site_name} - {field_name}", search_url))
+        
+        # Clear existing tabs if any and open search tabs
+        if search_urls:
+            # Clear all existing tabs
+            while self.tabs.count() > 0:
+                self.tabs.removeTab(0)
+            
+            # Open search tabs
+            for tab_title, search_url in search_urls:
+                new_tab = self._add_new_tab(search_url)
+                # Set a more descriptive tab title
+                tab_index = self.tabs.indexOf(new_tab)
+                if tab_index >= 0:
+                    self.tabs.setTabText(tab_index, tab_title[:15] + "..." if len(tab_title) > 15 else tab_title)
+        
+        # If no search URLs, just open a blank tab
+        if not search_urls:
+            self._add_new_tab()
