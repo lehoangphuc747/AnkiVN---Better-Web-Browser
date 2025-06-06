@@ -27,7 +27,7 @@ A simple web browser for Anki's Add Card dialog, allowing you to browse the web 
 
 ## Configuration
 
-Set your preferred start page in Tools > `Add Dialog Web Browser`
+Set your preferred start page in `AnkiVN > Better Web Browser`
 
 ## Requirements
 
