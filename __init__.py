@@ -78,22 +78,90 @@ def show_settings():
 def show_browser_sidebar(editor, url=None):
     parent = editor.parentWindow
     
+    # Determine if this is the Browser dialog
+    is_browser_dialog = parent.__class__.__name__ == "Browser"
+    
+    # Helper to get main field content from selected note in Browser dialog
+    def get_main_field_content_from_browser():
+        cfg = config.get_config()
+        main_field = cfg.get("main_field")
+        if not main_field:
+            return None
+        # Try to get selected note from browser
+        try:
+            # parent.selectedNotes() returns a list of note ids
+            selected = parent.selectedNotes()
+            if not selected:
+                return None
+            note_id = selected[0]
+            note = parent.mw.col.get_note(note_id)
+            if note and main_field in note:
+                return note[main_field].strip()
+        except Exception:
+            return None
+        return None
+
     if hasattr(parent, '_browser_sidebar'):
         if parent._browser_sidebar.isVisible():
-            if parent.__class__.__name__ == "Browser":
-                if hasattr(parent, '_browser_dock'):
-                    parent._browser_dock.hide()
-            parent._browser_sidebar.hide()
-            return
+            if is_browser_dialog:
+                # If already open, reload with current selected note
+                content = get_main_field_content_from_browser()
+                if content:
+                    parent._browser_sidebar.open_search_tabs(content)
+                else:
+                    tooltip("No main field content found for selected note.")
+                return
+            else:
+                if parent.__class__.__name__ == "Browser":
+                    if hasattr(parent, '_browser_dock'):
+                        parent._browser_dock.hide()
+                parent._browser_sidebar.hide()
+                return
         else:
-            if parent.__class__.__name__ == "Browser":
-                if hasattr(parent, '_browser_dock'):
-                    parent._browser_dock.show()
-            parent._browser_sidebar.show()
-            return
+            if is_browser_dialog:
+                parent._browser_sidebar.show()
+                # Also reload with current selected note
+                content = get_main_field_content_from_browser()
+                if content:
+                    parent._browser_sidebar.open_search_tabs(content)
+                else:
+                    tooltip("No main field content found for selected note.")
+                return
+            else:
+                if parent.__class__.__name__ == "Browser":
+                    if hasattr(parent, '_browser_dock'):
+                        parent._browser_dock.show()
+                parent._browser_sidebar.show()
+                return
 
     # Get search query from main field and configured sites
-    search_urls = _get_search_urls_for_editor(editor)
+    if is_browser_dialog:
+        content = get_main_field_content_from_browser()
+        search_urls = []
+        if content:
+            # Use the same logic as open_search_tabs to get URLs
+            cfg = config.get_config()
+            note_type_name = cfg.get("note_type")
+            main_field_name = cfg.get("main_field")
+            configurable_fields = cfg.get("configurable_fields", {}).get(note_type_name, [])
+            field_search_configs = cfg.get("field_search_configs", {}).get(note_type_name, {})
+            predefined_sites = PREDEFINED_SEARCH_SITES
+            search_content_encoded = content.strip().replace(' ', '+')
+            for field_name in configurable_fields:
+                field_config = field_search_configs.get(field_name, {})
+                for category_name, sites_config in field_config.items():
+                    if category_name in predefined_sites:
+                        for site_name, is_enabled in sites_config.items():
+                            if is_enabled and site_name in predefined_sites[category_name]:
+                                url_template = predefined_sites[category_name][site_name]
+                                placeholders = url_template.count("{}")
+                                search_url = url_template.format(*([search_content_encoded] * placeholders))
+                                search_urls.append((site_name, search_url))
+        else:
+            tooltip("No main field content found for selected note.")
+        # Continue to create the sidebar as usual
+    else:
+        search_urls = _get_search_urls_for_editor(editor)
 
     event_filter = BrowserEventFilter(parent)
     parent.installEventFilter(event_filter)
@@ -105,52 +173,41 @@ def show_browser_sidebar(editor, url=None):
         action_filter = BrowserActionFilter(parent)
         action.installEventFilter(action_filter)
 
-    if parent.__class__.__name__ == "Browser":
-        browser = BrowserWidget(url=None, parent=parent) 
-        parent._browser_sidebar = browser
-        
-        dock = QDockWidget(parent)  
-        dock.setTitleBarWidget(QWidget())  
+    browser = BrowserWidget(url=None, parent=parent)
+    parent._browser_sidebar = browser
+
+    if is_browser_dialog:
+        # Add to right dock area if possible
+        dock = QDockWidget(parent)
+        dock.setTitleBarWidget(QWidget())
         dock.setWidget(browser)
         dock.setAllowedAreas(Qt.DockWidgetArea.RightDockWidgetArea | Qt.DockWidgetArea.LeftDockWidgetArea)
-        
         browser.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
         window_width = parent.width()
         target_width = window_width // 3
         browser.setFixedWidth(target_width)
-        
         parent.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
-        parent._browser_dock = dock  
-        
-        # Open search URLs if any
+        parent._browser_dock = dock
+        if search_urls:
+            # Open all search tabs
+            browser.open_search_tabs(content)
+        return
+    else:
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        parent._splitter = splitter
+        main_widget = parent
+        old_layout = main_widget.layout()
+        container = QWidget()
+        container.setLayout(old_layout)
+        splitter.addWidget(container)
+        splitter.addWidget(browser)
+        new_layout = QVBoxLayout()
+        new_layout.setContentsMargins(0, 0, 0, 0)
+        new_layout.addWidget(splitter)
+        main_widget.setLayout(new_layout)
+        splitter.setSizes([500, 500])
         if search_urls:
             _open_search_urls_in_browser(browser, search_urls)
-        return
-
-    splitter = QSplitter(Qt.Orientation.Horizontal)
-    parent._splitter = splitter
-    
-    main_widget = parent
-    old_layout = main_widget.layout()
-    
-    container = QWidget()
-    container.setLayout(old_layout)
-    
-    splitter.addWidget(container)
-    browser = BrowserWidget(url=None, parent=parent)
-    parent._browser_sidebar = browser
-    splitter.addWidget(browser)
-    
-    new_layout = QVBoxLayout()
-    new_layout.setContentsMargins(0, 0, 0, 0)
-    new_layout.addWidget(splitter)
-    main_widget.setLayout(new_layout)
-    
-    splitter.setSizes([500, 500])
-    
-    # Open search URLs if any
-    if search_urls:
-        _open_search_urls_in_browser(browser, search_urls)
 
 def _get_search_urls_for_editor(editor):
     """Get the search URLs based on the current note's main field content and configured sites."""
@@ -312,34 +369,33 @@ def refresh_browser_search(editor):
     # Gọi saveNow với callback
     editor.saveNow(after_save)
 
-def on_browser_row_changed(browser, row):
-    """Handle browser row change to refresh search."""
+def on_browser_row_changed(browser):
+    """Auto-refresh the web browser sidebar in the Browser dialog when the note selection changes."""
+    # Only do this if the sidebar is open
     if not hasattr(browser, '_browser_sidebar') or not browser._browser_sidebar.isVisible():
         return
-        
-    editor = browser.editor
-    if editor:
-        # Thêm delay nhỏ để đảm bảo editor đã được cập nhật
-        mw.progress.timer(100, lambda: refresh_browser_search(editor), False)
-
-def setup_browser_shortcuts(browser):
-    """Setup browser shortcuts for refresh."""
+    # Get main field content from selected note
     cfg = config.get_config()
-    refresh_shortcut = cfg.get("refresh_shortcut", "Ctrl+R")
-    
-    # Gán phím tắt cho browser.form thay vì browser
-    shortcut = QShortcut(QKeySequence(refresh_shortcut), browser.form)
-    shortcut.activated.connect(lambda: refresh_browser_search(browser.editor))
+    main_field = cfg.get("main_field")
+    if not main_field:
+        return
+    try:
+        selected = browser.selectedNotes()
+        if not selected:
+            return
+        note_id = selected[0]
+        note = browser.mw.col.get_note(note_id)
+        if note and main_field in note:
+            content = note[main_field].strip()
+            if content:
+                browser._browser_sidebar.open_search_tabs(content)
+    except Exception:
+        return
 
 def setup_browser_hooks(browser):
-    """Setup all browser hooks and shortcuts."""
-    # Setup shortcuts
-    setup_browser_shortcuts(browser)
-    
+    """Setup browser hooks for auto-refresh on note selection change (no shortcut)."""
     # Connect to row change signal
-    browser.form.table.selectionModel().selectionChanged.connect(
-        lambda: on_browser_row_changed(browser, None)
-    )
+    browser.form.table.selectionModel().selectionChanged.connect(lambda: on_browser_row_changed(browser))
 
 # Register hooks
 gui_hooks.editor_did_init_buttons.append(add_browser_button)
