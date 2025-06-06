@@ -45,17 +45,33 @@ def get_config_path():
     """Return the path to the addon's configuration file."""
     mgr = mw.addonManager
 
-    if hasattr(mgr, "addonFolder"):
-        addon_dir = mgr.addonFolder(__name__)
-    elif hasattr(mgr, "addon_meta"):
-        addon_dir = mgr.addon_meta(__name__).path
-    elif hasattr(mgr, "addon_path"):
-        addon_dir = mgr.addon_path(__name__)
-    else:
-        addon_base = getattr(mgr, "addon_base", None)
-        if addon_base is None:
-            raise AttributeError("Cannot determine addon path")
-        addon_dir = os.path.join(addon_base, __name__)
+    try:
+        # Try the most common method first
+        if hasattr(mgr, "addonFolder"):
+            addon_dir = mgr.addonFolder(__name__)
+        elif hasattr(mgr, "addon_meta"):
+            addon_meta = mgr.addon_meta(__name__)
+            # Check if addon_meta has path attribute, otherwise use dir_name
+            if hasattr(addon_meta, 'path'):
+                addon_dir = addon_meta.path
+            elif hasattr(addon_meta, 'dir_name'):
+                addon_dir = os.path.join(mgr.addonsFolder(), addon_meta.dir_name)
+            else:
+                # Fallback: use the addon folder directly
+                addon_dir = os.path.join(mgr.addonsFolder(), __name__)
+        elif hasattr(mgr, "addon_path"):
+            addon_dir = mgr.addon_path(__name__)
+        else:
+            # Final fallback
+            addon_base = getattr(mgr, "addon_base", None)
+            if addon_base is None:
+                addon_dir = os.path.dirname(__file__)
+            else:
+                addon_dir = os.path.join(addon_base, __name__)
+    except Exception as e:
+        print(f"Error getting addon path: {e}")
+        # Ultimate fallback: use the directory of this file
+        addon_dir = os.path.dirname(__file__)
 
     return os.path.join(addon_dir, "config.json")
 
