@@ -2,8 +2,6 @@
 
 A lightweight, fully integrated web browser for Anki’s **Add Card** and **Browser** dialogs, designed to help you look up definitions, images, translations, and more without leaving Anki.
 
-![Demo](demo.gif)
-
 ---
 
 ## Table of Contents
