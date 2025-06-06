@@ -336,8 +336,3 @@ browser_settings_action = QAction("Better Web Browser", mw)
 browser_settings_action.triggered.connect(show_settings)
 ankivn_menu.addAction(browser_settings_action)
 
-# 추가 항목을 원하면 여기에 코드 작성
-# 예: 다른 기능에 대한 액션 추가
-# another_action = QAction("Another Feature", mw)
-# another_action.triggered.connect(some_function)
-# ankivn_menu.addAction(another_action)
