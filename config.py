@@ -79,15 +79,16 @@ def get_config():
     try:
         with open(config_path, 'r', encoding='utf-8') as f:
             config = json.load(f)
-            
+
         # Ensure all required keys exist
         default_config = get_default_config()
         for key in default_config:
             if key not in config:
                 config[key] = default_config[key]
-                
+
         return config
-    except:
+    except Exception as e:
+        print(f"Failed to load configuration: {e}")
         return get_default_config()
 
 def save_config(config):
@@ -98,5 +99,6 @@ def save_config(config):
         with open(config_path, 'w', encoding='utf-8') as f:
             json.dump(config, f, indent=4, ensure_ascii=False)
         return True
-    except:
+    except Exception as e:
+        print(f"Failed to save configuration: {e}")
         return False
