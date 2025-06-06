@@ -1,3 +1,0 @@
-settings_action = QAction("Add Dialog Web Browser", mw)
-settings_action.triggered.connect(show_settings)
-mw.form.menuTools.addAction(settings_action)
