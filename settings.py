@@ -314,7 +314,7 @@ class SettingsDialog(QDialog):
             site_item.setCheckState(1, Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked)
         
         # Update button text
-        button.setText("Unselect All" if checked else "Select All")
+        button.setText("Deselect All" if checked else "Select All")
 
     def filter_sites(self, text):
         """Filter sites based on search text."""
