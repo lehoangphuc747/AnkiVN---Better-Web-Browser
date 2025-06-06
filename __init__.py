@@ -1,7 +1,7 @@
 from aqt import gui_hooks, mw
 from aqt.qt import (QWidget, QVBoxLayout, QShortcut, QKeySequence, QAction, QObject, QEvent, QMenu, 
                     QSplitter, Qt, QDockWidget, QSizePolicy, QUrl)
-from aqt.utils import tooltip
+from aqt.utils import tooltip, qconnect
 from aqt.gui_hooks import browser_will_show
 from .browser import BrowserWidget
 from . import config
@@ -370,7 +370,7 @@ def refresh_browser_search(editor):
     editor.saveNow(after_save)
 
 def on_browser_row_changed(browser):
-    """Auto-refresh the web browser sidebar in the Browser dialog when the note selection changes."""
+    """Auto-refresh the web browser sidebar in the Browser dialog when the note selection changes, but only if the main field content has changed."""
     # Only do this if the sidebar is open
     if not hasattr(browser, '_browser_sidebar') or not browser._browser_sidebar.isVisible():
         return
@@ -380,22 +380,24 @@ def on_browser_row_changed(browser):
     if not main_field:
         return
     try:
-        selected = browser.selectedNotes()
+        selected = browser.selected_notes()
         if not selected:
             return
         note_id = selected[0]
         note = browser.mw.col.get_note(note_id)
         if note and main_field in note:
             content = note[main_field].strip()
-            if content:
+            # Only refresh if content is different from last search
+            if not hasattr(browser, '_last_browser_search_content') or browser._last_browser_search_content != content:
                 browser._browser_sidebar.open_search_tabs(content)
+                browser._last_browser_search_content = content
     except Exception:
         return
 
 def setup_browser_hooks(browser):
-    """Setup browser hooks for auto-refresh on note selection change (no shortcut)."""
-    # Connect to row change signal
-    browser.form.table.selectionModel().selectionChanged.connect(lambda: on_browser_row_changed(browser))
+    """Setup browser hooks for auto-refresh on note selection change (no shortcut, no crash)."""
+    # Connect to row change signal using browser.table
+    browser.table.selectionModel().selectionChanged.connect(lambda: on_browser_row_changed(browser))
 
 # Register hooks
 gui_hooks.editor_did_init_buttons.append(add_browser_button)
@@ -410,3 +412,27 @@ mw.form.menubar.insertMenu(mw.form.menuHelp.menuAction(), ankivn_menu) # Add thi
 browser_settings_action = QAction("Better Web Browser", mw)
 browser_settings_action.triggered.connect(show_settings)
 ankivn_menu.addAction(browser_settings_action)
+
+def my_browser_hook(browser):
+    sel_model = browser.table._view.selectionModel()
+    if not sel_model:
+        return
+
+    def on_selection_changed(selected, deselected):
+        note_ids = browser.selected_notes()
+        if not note_ids:
+            return
+        note_id = note_ids[0]
+        cfg = config.get_config()
+        main_field = cfg.get("main_field")
+        note = browser.mw.col.get_note(note_id)
+        if note and main_field in note:
+            content = note[main_field].strip()
+            if not hasattr(browser, '_last_browser_search_content') or browser._last_browser_search_content != content:
+                if hasattr(browser, '_browser_sidebar') and browser._browser_sidebar.isVisible():
+                    browser._browser_sidebar.open_search_tabs(content)
+                browser._last_browser_search_content = content
+
+    qconnect(sel_model.selectionChanged, on_selection_changed)
+
+gui_hooks.browser_will_show.append(my_browser_hook)
