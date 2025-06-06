@@ -5,6 +5,7 @@ from aqt.utils import tooltip
 from aqt.gui_hooks import browser_will_show
 from .browser import BrowserWidget
 from . import config
+from .config import PREDEFINED_SEARCH_SITES
 from .settings import SettingsDialog
 
 class BrowserEventFilter(QObject):
@@ -183,45 +184,8 @@ def _get_search_urls_for_editor(editor):
     
     search_urls = []
     
-    # From settings.py PREDEFINED_SEARCH_SITES
-    predefined_sites = {
-        "English": {
-            "Cambridge Dictionary": "https://dictionary.cambridge.org/dictionary/english/{}",
-            "Oxford Dictionary": "https://www.oxfordlearnersdictionaries.com/definition/english/{}_1?q={}",
-            "Merriam-Webster": "https://www.merriam-webster.com/dictionary/{}",
-            "Longman Dictionary": "https://www.ldoceonline.com/dictionary/{}",
-            "Collins Dictionary": "https://www.collinsdictionary.com/dictionary/english/{}",
-            "Macmillan Dictionary": "https://www.macmillandictionary.com/search/?q={}",
-            "Urban Dictionary": "https://www.urbandictionary.com/define.php?term={}",
-            "Vocabulary.com": "https://www.vocabulary.com/dictionary/{}",
-            "The Free Dictionary": "https://www.thefreedictionary.com/{}",
-            "Dictionary.com": "https://www.dictionary.com/browse/{}"
-        },
-        "Tiếng Việt": {
-            "Cambridge Việt": "https://dictionary.cambridge.org/dictionary/english-vietnamese/{}",
-            "Dunno": "https://dunno.ai/search/word/{}?hl=vi",
-            "Laban": "https://dict.laban.vn/find?type=1&query={}",
-            "VDict": "https://vdict.com/{},1,0,0.html",
-        },
-        "Example": {
-            "Dunno Examples": "https://dunno.ai/search/example/{}?hl=vi",
-            "TraCau": "https://tracau.vn/?s={}",
-            "Ludwig": "https://ludwig.guru/s/{}",
-            "Sentence Stack": "https://sentencestack.com/q/{}",
-            "Fraze.it": "https://fraze.it/n_search.jsp?q={}&l=0"
-        },
-        "Thesaurus": {
-            "Thesaurus.com": "https://www.thesaurus.com/browse/{}",
-            "Power Thesaurus": "https://www.powerthesaurus.org/{}",
-            "Merriam-Webster Thesaurus": "https://www.merriam-webster.com/thesaurus/{}"
-        },
-        "Image": {
-            "Google Images": "https://www.google.com/search?q={}&tbm=isch",
-            "Bing Images": "https://www.bing.com/images/search?q={}",
-            "Giphy": "https://giphy.com/search/{}",
-            "Tenor": "https://tenor.com/search/{}"
-        }
-    }
+    # Use predefined sites from config
+    predefined_sites = PREDEFINED_SEARCH_SITES
     
     # For each configured field, get the selected sites
     for field_name in configurable_fields:
