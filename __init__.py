@@ -227,15 +227,33 @@ def _open_search_urls_in_browser(browser, search_urls):
         browser._add_new_tab(url)
 
 def add_browser_button(buttons, editor):
-    """Add Web Browser button to editor buttons."""
+    """Add Web Browser button and Reset button to editor buttons."""
     browser_button = editor.addButton(
         icon=None,
         cmd="web_browser",
         func=lambda e=editor: show_browser_sidebar(e),
-        tip="Web Browser (Ctrl+B)",
-        keys="Ctrl+B"
+        tip="Web Browser",
+        keys=None
     )
     buttons.append(browser_button)
+
+    # Add reset button (🔄) next to web_browser
+    def reset_browser():
+        # Only refresh if browser sidebar is visible
+        parent = editor.parentWindow
+        if hasattr(parent, '_browser_sidebar') and parent._browser_sidebar.isVisible():
+            refresh_browser_search(editor)
+        else:
+            tooltip("Web browser sidebar is not open!")
+
+    reset_button = editor.addButton(
+        icon=None,
+        cmd="reset_web_browser",
+        func=lambda e=editor: reset_browser(),
+        tip="Reset Web Browser",
+        label="🔄"
+    )
+    buttons.append(reset_button)
 
 def setup_editor_shortcuts(editor):
     """Setup editor shortcuts for browser refresh."""

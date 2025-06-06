@@ -112,9 +112,23 @@ def save_config(config):
     config_path = get_config_path()
     
     try:
+        # Ensure the directory exists
+        config_dir = os.path.dirname(config_path)
+        if not os.path.exists(config_dir):
+            os.makedirs(config_dir, exist_ok=True)
+            
+        # Try to write the config
         with open(config_path, 'w', encoding='utf-8') as f:
             json.dump(config, f, indent=4, ensure_ascii=False)
+        
+        print(f"Configuration saved successfully to: {config_path}")
         return True
+    except PermissionError as e:
+        print(f"Permission denied when saving configuration: {e}")
+        print(f"Config path: {config_path}")
+        return False
     except Exception as e:
         print(f"Failed to save configuration: {e}")
+        print(f"Config path: {config_path}")
+        print(f"Config data: {config}")
         return False

@@ -28,19 +28,19 @@ class TabWidget(QWidget):
         self.back_button = QPushButton("←", self)
         self.back_button.clicked.connect(self._go_back)
         self.back_button.setMaximumWidth(30)
-        self.back_button.setToolTip("Back (Ctrl+[)")
+        self.back_button.setToolTip("Back")
         nav_layout.addWidget(self.back_button)
 
         self.forward_button = QPushButton("→", self)
         self.forward_button.clicked.connect(self._go_forward)
         self.forward_button.setMaximumWidth(30)
-        self.forward_button.setToolTip("Forward (Ctrl+])")
+        self.forward_button.setToolTip("Forward")
         nav_layout.addWidget(self.forward_button)
 
         self.reload_button = QPushButton("↻", self)
         self.reload_button.clicked.connect(self._reload_page)
         self.reload_button.setMaximumWidth(30)
-        self.reload_button.setToolTip("Reload (Ctrl+R)")
+        self.reload_button.setToolTip("Reload")
         nav_layout.addWidget(self.reload_button)
         
         self.url_edit = QLineEdit(self)
@@ -52,7 +52,7 @@ class TabWidget(QWidget):
         self.new_tab_button = QPushButton("+", self)
         self.new_tab_button.clicked.connect(lambda: self.browser._add_new_tab() if self.browser else None)
         self.new_tab_button.setMaximumWidth(30)
-        self.new_tab_button.setToolTip("New Tab (Ctrl+T)")
+        self.new_tab_button.setToolTip("New Tab")
         nav_layout.addWidget(self.new_tab_button)
         
         layout.addLayout(nav_layout)
@@ -84,6 +84,19 @@ class TabWidget(QWidget):
 
         QShortcut(QKeySequence("Ctrl+["), self).activated.connect(self._go_back)
         QShortcut(QKeySequence("Ctrl+]"), self).activated.connect(self._go_forward)
+
+    def _reset_search(self):
+        """Reset the search by re-searching the main field content"""
+        if self.browser and hasattr(self.browser, 'parent') and hasattr(self.browser.parent, 'editor'):
+            editor = self.browser.parent.editor
+            if editor and hasattr(editor, 'note'):
+                from . import config
+                cfg = config.get_config()
+                main_field = cfg.get("main_field")
+                if main_field and main_field in editor.note:
+                    content = editor.note[main_field].strip()
+                    if content:
+                        self.browser.open_search_tabs(content)
 
     def _go_back(self):
         self.webview.back()
