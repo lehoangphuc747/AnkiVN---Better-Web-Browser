@@ -43,7 +43,20 @@ PREDEFINED_SEARCH_SITES = {
 
 def get_config_path():
     """Return the path to the addon's configuration file."""
-    addon_dir = mw.addonManager.addonFolder(__name__)
+    mgr = mw.addonManager
+
+    if hasattr(mgr, "addonFolder"):
+        addon_dir = mgr.addonFolder(__name__)
+    elif hasattr(mgr, "addon_meta"):
+        addon_dir = mgr.addon_meta(__name__).path
+    elif hasattr(mgr, "addon_path"):
+        addon_dir = mgr.addon_path(__name__)
+    else:
+        addon_base = getattr(mgr, "addon_base", None)
+        if addon_base is None:
+            raise AttributeError("Cannot determine addon path")
+        addon_dir = os.path.join(addon_base, __name__)
+
     return os.path.join(addon_dir, "config.json")
 
 def get_default_config():

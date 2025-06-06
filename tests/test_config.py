@@ -18,7 +18,7 @@ def test_get_default_config_keys(load_module):
 
 def test_get_config_no_file(load_module, tmp_path):
     config = load_module("config")
-    # aqt.mw.addonManager.addonFolder was set to tmp_path by fixture
+    # addon path attributes were set to tmp_path by fixture
     cfg = config.get_config()
     assert cfg == config.get_default_config()
 

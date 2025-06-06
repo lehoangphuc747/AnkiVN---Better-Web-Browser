@@ -64,6 +64,13 @@ def dummy_aqt(tmp_path):
         browser_will_show=[],
     )
 
+    addon_manager = types.SimpleNamespace(
+        addonFolder=lambda name: str(tmp_path),
+        addon_meta=lambda name: types.SimpleNamespace(path=str(tmp_path)),
+        addon_path=lambda name: str(tmp_path),
+        addon_base=str(tmp_path),
+    )
+
     mw = types.SimpleNamespace(
         app=types.SimpleNamespace(keyboardModifiers=lambda: 0),
         form=types.SimpleNamespace(
@@ -71,7 +78,7 @@ def dummy_aqt(tmp_path):
             menubar=_DummyMenuBar(),
         ),
         progress=types.SimpleNamespace(timer=lambda *a, **k: None),
-        addonManager=types.SimpleNamespace(addonFolder=lambda name: str(tmp_path)),
+        addonManager=addon_manager,
     )
 
     aqt_module = types.SimpleNamespace(mw=mw, gui_hooks=gui_hooks, qt=qt, utils=utils)
