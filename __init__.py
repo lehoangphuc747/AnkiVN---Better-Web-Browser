@@ -209,22 +209,23 @@ def _get_search_urls_for_editor(editor):
 
 def _open_search_urls_in_browser(browser, search_urls):
     """Open search URLs in the browser as separate tabs."""
+    # Clear existing tabs if any and open search tabs
+    if search_urls:
+        # Clear all existing tabs
+        while browser.tabs.count() > 0:
+            browser.tabs.removeTab(0)
+        
+        # Open search tabs
+        for tab_title, search_url in search_urls:
+            new_tab = browser._add_new_tab(search_url)
+            # Set a more descriptive tab title
+            tab_index = browser.tabs.indexOf(new_tab)
+            if tab_index >= 0:
+                browser.tabs.setTabText(tab_index, tab_title[:15] + "..." if len(tab_title) > 15 else tab_title)
+
+    # If no search URLs, just open a blank tab
     if not search_urls:
-        return
-    
-    # Open the first URL in the current tab (replace the blank page)
-    first_site_name, first_url = search_urls[0]
-    current_tab = browser.tabs.currentWidget()
-    if current_tab:
-        current_tab.webview.setUrl(QUrl(first_url))
-        current_tab.url_edit.setText(first_url)
-        # Update tab title
-        index = browser.tabs.indexOf(current_tab)
-        browser.tabs.setTabText(index, first_site_name[:15] + "..." if len(first_site_name) > 15 else first_site_name)
-    
-    # Open remaining URLs in new tabs
-    for site_name, url in search_urls[1:]:
-        browser._add_new_tab(url)
+        browser._add_new_tab()
 
 def add_browser_button(buttons, editor):
     """Add Web Browser button and Reset button to editor buttons."""
@@ -353,4 +354,3 @@ mw.form.menubar.insertMenu(mw.form.menuHelp.menuAction(), ankivn_menu) # Add thi
 browser_settings_action = QAction("Better Web Browser", mw)
 browser_settings_action.triggered.connect(show_settings)
 ankivn_menu.addAction(browser_settings_action)
-
