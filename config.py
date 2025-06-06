@@ -42,8 +42,9 @@ PREDEFINED_SEARCH_SITES = {
 }
 
 def get_config_path():
-    """Get the path to the config file."""
-    return os.path.join(mw.pm.addonFolder(), "config.json")
+    """Return the path to the addon's configuration file."""
+    addon_dir = mw.addonManager.addonFolder(__name__)
+    return os.path.join(addon_dir, "config.json")
 
 def get_default_config():
     """Get default configuration."""
