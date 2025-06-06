@@ -1,6 +1,17 @@
 from aqt import QWebEngineView, QWebEnginePage, QWebEngineProfile, QWebEngineSettings, Qt, QUrl
-from aqt.qt import (QWidget, QVBoxLayout, QPushButton, QHBoxLayout, QLineEdit, 
-                   QShortcut, QKeySequence, QTabWidget, QTabBar, QEvent)
+from aqt.qt import (
+    QWidget,
+    QVBoxLayout,
+    QPushButton,
+    QHBoxLayout,
+    QLineEdit,
+    QShortcut,
+    QKeySequence,
+    QTabWidget,
+    QTabBar,
+    QEvent,
+)
+from .config import PREDEFINED_SEARCH_SITES
 
 class TabWidget(QWidget):
     def __init__(self, url=None, parent=None, browser=None):
@@ -226,9 +237,6 @@ class BrowserWidget(QWidget):
         # Get configured fields and their search sites
         configurable_fields = cfg.get("configurable_fields", {}).get(note_type, [])
         field_search_configs = cfg.get("field_search_configs", {}).get(note_type, {})
-        
-        # Import search sites from settings
-        from .settings import PREDEFINED_SEARCH_SITES
         
         search_urls = []
         search_content_encoded = search_content.strip().replace(' ', '+')
