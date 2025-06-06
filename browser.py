@@ -242,7 +242,8 @@ class BrowserWidget(QWidget):
                     for site_name, is_enabled in sites_config.items():
                         if is_enabled and site_name in PREDEFINED_SEARCH_SITES[category_name]:
                             url_template = PREDEFINED_SEARCH_SITES[category_name][site_name]
-                            search_url = url_template.format(search_content_encoded)
+                            placeholders = url_template.count("{}")
+                            search_url = url_template.format(*([search_content_encoded] * placeholders))
                             search_urls.append((f"{site_name} - {field_name}", search_url))
         
         # Clear existing tabs if any and open search tabs

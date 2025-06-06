@@ -234,9 +234,10 @@ def _get_search_urls_for_editor(editor):
                             url_template = predefined_sites[category_name][site_name]
                             # Format the URL with the main field content
                             try:
-                                search_url = url_template.format(main_field_content)
+                                placeholders = url_template.count("{}")
+                                search_url = url_template.format(*([main_field_content] * placeholders))
                                 search_urls.append((site_name, search_url))
-                            except:
+                            except Exception:
                                 # Handle URL formatting errors
                                 pass
     
