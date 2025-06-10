@@ -400,8 +400,8 @@ def on_browser_row_changed(browser):
 
 def setup_browser_hooks(browser):
     """Setup browser hooks for auto-refresh on note selection change (no shortcut, no crash)."""
-    # Connect to row change signal using browser.table
-    browser.table.selectionModel().selectionChanged.connect(lambda: on_browser_row_changed(browser))
+    # Connect to row change signal using browser.table._view
+    browser.table._view.selectionModel().selectionChanged.connect(lambda: on_browser_row_changed(browser))
 
 # Register hooks
 gui_hooks.editor_did_init_buttons.append(add_browser_button)
