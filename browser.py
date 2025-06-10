@@ -58,6 +58,11 @@ class TabWidget(QWidget):
         layout.addLayout(nav_layout)
         
         self.profile = QWebEngineProfile("browser_profile")
+        
+        # Giả lập trình duyệt di động để các trang web (như Google)
+        # tự động gửi về phiên bản tối ưu cho màn hình hẹp.
+        self.profile.setHttpUserAgent("Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.91 Mobile Safari/537.36")
+        
         self.profile.setPersistentCookiesPolicy(
             QWebEngineProfile.PersistentCookiesPolicy.ForcePersistentCookies)
         
@@ -72,6 +77,9 @@ class TabWidget(QWidget):
         self.webview.urlChanged.connect(self._url_changed)
         self.webview.loadFinished.connect(self._on_load_finished)
         
+        # Kết nối tín hiệu loadFinished với hàm inject viewport mới
+        self.webview.loadFinished.connect(self.inject_viewport_on_load)
+        
         if url:
             self.webview.load(QUrl(url))
             self.url_edit.setText(url)
@@ -84,6 +92,26 @@ class TabWidget(QWidget):
 
         QShortcut(QKeySequence("Ctrl+["), self).activated.connect(self._go_back)
         QShortcut(QKeySequence("Ctrl+]"), self).activated.connect(self._go_forward)
+
+    def inject_viewport_on_load(self, ok):
+        """Inject hoặc ép buộc thẻ meta viewport để đảm bảo layout responsive."""
+        if not ok:
+            return
+            
+        # Script này sẽ tìm thẻ viewport có sẵn và ép nó theo ý muốn,
+        # hoặc tạo mới nếu chưa có. Hiệu quả hơn với các trang phức tạp.
+        script = """
+        var viewport = document.querySelector("meta[name=viewport]");
+        if (viewport) {
+            viewport.setAttribute('content', 'width=device-width, initial-scale=1.0');
+        } else {
+            var meta = document.createElement('meta');
+            meta.name = 'viewport';
+            meta.content = 'width=device-width, initial-scale=1.0';
+            document.getElementsByTagName('head')[0].appendChild(meta);
+        }
+        """
+        self.webpage.runJavaScript(script)
 
     def _reset_search(self):
         """Reset the search by re-searching the main field content"""
