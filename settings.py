@@ -54,6 +54,11 @@ class SettingsDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Better Web Browser Settings")
+
+        # Thêm nút Phóng to (Maximize) vào thanh tiêu đề của cửa sổ
+        # Nút này sẽ nằm bên cạnh nút Thu nhỏ và nút Đóng (X).
+        self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowMaximizeButtonHint)
+
         self.field_site_checkboxes = {}  # [note_type][field_name][category_name][site_name] -> QCheckBox
         self.configurable_field_details = {} # [field_name] -> { "group_box": QGroupBox, "content_widget": QWidget, "toggle_button": QPushButton, "categories": {}}
         
