@@ -178,16 +178,20 @@ def show_browser_sidebar(editor, url=None):
 
     if is_browser_dialog:
         # Add to right dock area if possible
-        dock = QDockWidget(parent)
-        dock.setTitleBarWidget(QWidget())
+        dock = QDockWidget("Better Web Browser", parent)
         dock.setWidget(browser)
         dock.setAllowedAreas(Qt.DockWidgetArea.RightDockWidgetArea | Qt.DockWidgetArea.LeftDockWidgetArea)
-        browser.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
-        window_width = parent.width()
-        target_width = window_width // 3
-        browser.setFixedWidth(target_width)
+
+        # Cho phép widget co giãn thoải mái
+        browser.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        
         parent.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
         parent._browser_dock = dock
+
+        # Đặt kích thước ban đầu cho DOCK một cách linh hoạt
+        initial_width = parent.width() // 3
+        parent.resizeDocks([dock], [initial_width], Qt.Orientation.Horizontal)
+        
         if search_urls:
             # Open all search tabs
             browser.open_search_tabs(content)
