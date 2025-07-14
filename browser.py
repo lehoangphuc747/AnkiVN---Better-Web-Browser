@@ -1,4 +1,3 @@
-from aqt import QWebEngineView, QWebEnginePage, QWebEngineProfile, QWebEngineSettings, Qt, QUrl
 from aqt.qt import (
     QWidget,
     QVBoxLayout,
@@ -10,6 +9,12 @@ from aqt.qt import (
     QTabWidget,
     QTabBar,
     QEvent,
+    QWebEngineView,
+    QWebEnginePage,
+    QWebEngineProfile,
+    QWebEngineSettings,
+    Qt,
+    QUrl,
 )
 from .config import PREDEFINED_SEARCH_SITES
 

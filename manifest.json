@@ -1,4 +1,5 @@
 {
-    "name": "Add Dialog Web Browser",
-    "package": "add_dialog_web_browser"
+    "name": "AnkiVN - Better Web Browser",
+    "package": "add_dialog_web_browser",
+    "human_version": "1.0.0"
 }

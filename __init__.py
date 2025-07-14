@@ -408,6 +408,11 @@ gui_hooks.editor_did_init_buttons.append(add_browser_button)
 gui_hooks.editor_did_init.append(setup_editor_shortcuts)
 browser_will_show.append(setup_browser_hooks)  # Use browser_will_show instead of browser_did_load
 
+def show_settings():
+    """Show settings dialog."""
+    dialog = SettingsDialog(mw)
+    dialog.exec()
+
 # 메인 메뉴에 AnkiVN 서브메뉴 생성
 ankivn_menu = QMenu("AnkiVN", mw)
 mw.form.menubar.insertMenu(mw.form.menuHelp.menuAction(), ankivn_menu) # Add this line to insert before Help menu
@@ -438,5 +443,8 @@ def my_browser_hook(browser):
                 browser._last_browser_search_content = content
 
     qconnect(sel_model.selectionChanged, on_selection_changed)
+
+# Register the browser hook
+browser_will_show.append(my_browser_hook)
 
 gui_hooks.browser_will_show.append(my_browser_hook)
